@@ -1,5 +1,6 @@
+//package Team4450.Robot19;  //Why is this erroring too???
+//package FeedCamera;     //This is erroring for somoe reason, but this should work <----- README VIDUSHI!
 
-package Team4450.Robot19;
 
 import Team4450.Lib.*;
 import Team4450.Robot19.Devices;
@@ -7,10 +8,16 @@ import Team4450.Robot19.Devices;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import jaci.pathfinder.Pathfinder;
+import jaci.pathfinder.Trajectory;
+import jaci.pathfinder.followers.EncoderFollower;
+
+import java.io.File;
 
 public class Autonomous
 {
 	private final Robot			robot;
+	private final Vision		vision;
 	// Next statement only used with LabView dashboard.
 	//private int					program = (int) SmartDashboard.getNumber("AutoProgramSelect",0);
 	private int					program;
@@ -95,6 +102,10 @@ public class Autonomous
 			case 0:		// No auto program.
 				break;
 
+			case 1:
+				pathfinderWithVisionExample();
+				break;
+
 		}
 		
 		// Update the robot heading indicator on the DS.
@@ -108,6 +119,42 @@ public class Autonomous
 		
 		Util.consoleLog("end");
 	}
+
+
+	//This is the method that makes the robot go to the vision target
+
+	/*private void visionMovement(int lowerLimit){
+		
+		boolean reached = false;
+		while(!reached) {
+			
+			if(((int) PiVision.vision.java.getContourDistanceBox()) < lowerLimit) {
+				Util.consoleLog();
+                Devices.robotDrive.tankDrive(0.5, 0.5);    
+            }  
+            else if(((int) robot.vision.getContourDistanceBox()) > lowerLimit) {
+				Util.consoleLog();
+				Devices.robotDrive.tankDrive(0.0, 0.0);
+				reached = true;
+            }
+		}
+		
+	}*/ 
+
+
+	//This is how pathfinder mixed with vision would look
+	//It runs the path, and once the path stops, it switches to vision movement to line up better.
+	/* private void pathfinderWithVisionExample() {
+		String rightPathFile = "/home/lvuser/output/RocketUpClose.right.pf1.csv";
+		String leftPathFile = "/home/lvuser/output/RocketUpClose.left.pf1.csv";
+		PathfinderAuto(rightPathFile, leftPathFile);
+		visionMovement();
+			Once most percisely lined up, set mostPercise to true
+		if mostPercise = true
+			place ball/disc
+		END METHOD
+	} */
+
 
 	/**
 	 * Auto drive straight in set direction and power for specified encoder count. Stops
