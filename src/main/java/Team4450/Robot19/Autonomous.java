@@ -1,9 +1,12 @@
-
 package Team4450.Robot19;
 
 import Team4450.Lib.*;
 import Team4450.Robot19.Devices;
-
+import edu.wpi.first.wpilibj.Encoder;
+import edu.wpi.first.wpilibj.CounterBase.EncodingType;
+import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -13,10 +16,12 @@ public class Autonomous
 	private final Robot			robot;
 	// Next statement only used with LabView dashboard.
 	//private int					program = (int) SmartDashboard.getNumber("AutoProgramSelect",0);
-	private int					program;
+	private int					program = 0;
 	private final GearBox		gearBox;
-	
+	private final Vision		vision;
 	private static SendableChooser<Integer>	autoChooser;
+
+	private Encoder	encoder = new Encoder(0, 1, true, EncodingType.k4X);
 	
 	Autonomous(Robot robot)
 	{
@@ -25,6 +30,7 @@ public class Autonomous
 		this.robot = robot;
 		
 		gearBox = new GearBox(robot);
+		vision = Vision.getInstance(robot);
 	}
 
 	public void dispose()
@@ -52,7 +58,10 @@ public class Autonomous
 		
 		autoChooser.setName("Auto Program");
 		autoChooser.addDefault("No Program", 0);
-		autoChooser.addDefault("Auto Program 1", 1);
+		autoChooser.addDefault("Vision Offset Auton", 1);
+		autoChooser.addDefault("Vision Forward Auton", 2);
+		autoChooser.addDefault("Holly OLD-Forward Auton", 3);
+
 		
 		SmartDashboard.putData(autoChooser);
 	}
@@ -61,7 +70,11 @@ public class Autonomous
 
 	public void execute()
 	{
-		program = autoChooser.getSelected();
+		try
+		{
+			program = autoChooser.getSelected();
+		}
+		catch (Exception e)	{ Util.logException(e); }
 		
 		Util.consoleLog("Alliance=%s, Location=%d, Program=%d, FMS=%b, msg=%s", robot.alliance.name(), robot.location, program, 
 				Devices.ds.isFMSAttached(), robot.gameMessage);
@@ -94,12 +107,22 @@ public class Autonomous
 		{
 			case 0:		// No auto program.
 				break;
+			
+			case 1:
+				
+				break;
+			case 2:
+				//visionForward(300, 0.4);
+				break;
+			case 3:
+				HollyVision();
+				break;
 
 		}
 		
 		// Update the robot heading indicator on the DS.
 
-		// Next stmt only used with labview DB.
+		// Next statement only used with labview DB.
 		//SmartDashboard.putNumber("Gyro", Devices.navx.getHeadingInt());
 		
 		SmartDashboard.updateValues();
@@ -108,6 +131,151 @@ public class Autonomous
 		
 		Util.consoleLog("end");
 	}
+
+	// private void visionForward(int lowerLimit, double power){
+		
+	// 	boolean reached = false;
+	// 	int offset = (int)robot.vision.getTurnAngle();
+	// 	Util.consoleLog("Inside the method");
+	// 	while(!reached && offset == 0.0 && isAutoActive()){
+	// 		Util.consoleLog("Now inside the while loop");
+	// 		offset = (int)robot.vision.getTurnAngle();
+			
+	// 		//dist = vision.getEntry("inner_dist");			
+	// 		Util.consoleLog("Offset =%d", offset);
+	// 		if(offset < lowerLimit){
+	// 			Util.consoleLog("First Level Close");
+	// 			Devices.robotDrive.tankDrive(power, power);
+	// 			//autoDrive(0.30, 100, true);
+	// 			reached = false;    
+    //         }  
+    //         else if(offset > lowerLimit){
+	// 			Util.consoleLog("Stop Close");
+	// 			Devices.robotDrive.tankDrive(0.0, 0.0);
+	// 		//autoDrive(0, 0, true);
+	// 			reached = true;
+    //         }
+	// 	}
+	// }
+
+	private void HollyVision() {
+		autoDriveVision(0.3, 1000, true);
+	}
+
+	private void autoDriveVision(double power, int encoderCounts, boolean enableBrakes)
+	{
+		int		distance, prevDistance = 0;
+		double	pegOffset, gain = .002, power2 = power, delay = .10;	//.25;
+		boolean	driving = true;
+		
+		Util.consoleLog("pwr=%.2f, count=%d, brakes=%b", power, encoderCounts, enableBrakes);
+
+	//	robot.SetCANTalonBrakeMode(enableBrakes);
+
+		encoder.reset();
+		
+	//	robot.monitorDistanceThread.setDelay(delay);
+		
+		while (driving) 
+		{
+			LCD.printLine(4, "encoder=%d", encoder.get());
+			
+			// pegOffset is negative if robot veering right, positive if veering left when going forward.
+			// It is opposite when going backward. Note that for this robot, - power means forward and
+			// + power means backward. If we get successful image evaluation, use the pixel offset from
+			// center as direction control. If not, set pegOffset = 0 to drive straight on current heading.
+			
+			if (vision.SeekPegOffset())
+			{
+				pegOffset = vision.getPegOffset();
+				
+				distance = vision.getDistance();
+				
+				SmartDashboard.putBoolean("TargetLocked", true);
+			}
+			else
+			{
+				pegOffset = 0;
+				distance = 0;
+				SmartDashboard.putBoolean("TargetLocked", false);
+			}
+			
+			// If we have the distance between target rectangles we can determine from that if we
+			// should stop. If we don't have distance between rectangles, fall back to encoder counts.
+			// Also, while monitoring distance, if distance is less than previous distance then we are
+			// probably so close to target we are not getting true distance so we should stop.
+			
+			if (distance != 0)
+			{
+				if (distance > 150 && distance <= prevDistance)
+					driving = false;
+				else
+					driving = isAutoActive() && distance < 195;
+				
+				if (!driving) 
+				{
+					Util.consoleLog("stop driving, distance=%d", distance);
+					continue;
+				}
+			}
+			else
+			{
+				driving = isAutoActive() && Math.abs(encoder.get()) < encoderCounts;
+				
+				if (!driving) 
+				{
+					Util.consoleLog("stop driving, encoder=%d", Math.abs(encoder.get()));
+					continue;
+				}
+			}
+			
+			prevDistance = distance;
+			
+			// If no distance, we are driving on encoder so use very short delay. If we have distance
+			// measurement, then use longer delay between image evaluations. When close to the target
+			// distance, increase the rate of image checks and drop the speed. Also, when far from the
+			// target we need a small gain so that robot responds minimally to being off center. When
+			// we get close we need to up the gain so the robot responds more quickly to off center.
+			
+			if (distance != 0 && distance < 100)
+			{
+				delay = .10;	//.25;
+				power2 = power;
+			}
+			else if (distance != 0)
+			{
+				delay = .10;
+				gain = .005;
+				power2 = power / 2;
+			}
+			
+			// Invert offset for backwards.
+			
+			if (power > 0) pegOffset = -pegOffset;
+			
+			// Gain value controls sensitivity to the offset and maps the offset to range -1 to +1. 
+			// Cap the offset in range -1 to +1.
+			
+			pegOffset = pegOffset * gain;
+			
+			if (pegOffset < -1)
+				pegOffset = -1;
+			else if (pegOffset > 1)
+				pegOffset = 1;
+			
+
+			// Offset is + if robot veering right, so we invert to - because - curve is to the left.
+			// Offset is - if robot veering left, so we invert to + because + curve is to the right.
+			
+			Devices.robotDrive.tankDrive(power2, -pegOffset);
+			
+			Timer.delay(delay);
+		}	// end of while (driving).
+
+		Devices.robotDrive.tankDrive(0, 0, true);				
+		
+		//robot.monitorDistanceThread.setDelay(1.0);
+}
 
 	/**
 	 * Auto drive straight in set direction and power for specified encoder count. Stops
@@ -124,25 +292,26 @@ public class Autonomous
 	 * new drive base as gear ratios and wheel configuration may require different values to stop smoothly
 	 * and accurately.
 	 */
-	private void autoDrive(double power, int encoderCounts, StopMotors stop, Brakes brakes, Pid pid, 
-						    Heading heading)
+
+	 //	private void autoDrive(double power, int encoderCounts, StopMotors stop, Brakes brakes, Pid pid, Heading heading)
+	 private void autoDrive(double power, int encoderCounts, boolean enableBrakes)
 	{
 		double			yaw, kSteeringGain = .10, elapsedTime = 0;
 		double			kP = .002, kI = 0.001, kD = 0.001;
 		
 		SynchronousPID	pidController = null;
 
-		Util.consoleLog("pwr=%.2f  count=%d  stop=%s  brakes=%s  pid=%s  hdg=%s", power, encoderCounts, stop, brakes, 
-						pid, heading);
+		// Util.consoleLog("pwr=%.2f  count=%d  stop=%s  brakes=%s  pid=%s  hdg=%s", power, encoderCounts, stop, brakes, 
+		// 				pid, heading);
 
 		Util.checkRange(power, 1.0);
 		
 		if (encoderCounts <= 0) throw new IllegalArgumentException("Encoder counts < 1");
 		
-		if (brakes == Brakes.on)
-			Devices.SetCANTalonBrakeMode(true);
-		else
-			Devices.SetCANTalonBrakeMode(false);
+		// if (brakes == Brakes.on)
+		// 	Devices.SetCANTalonBrakeMode(true);
+		// else
+		// 	Devices.SetCANTalonBrakeMode(false);
 			
 		Devices.rightEncoder.reset();
 		
@@ -150,34 +319,34 @@ public class Autonomous
 		
 		// If not measuring yaw from current heading, reset yaw based on current direction robot is facing.
 		
-		if (heading == Heading.angle)
-		{
-			Util.consoleLog("before reset=%.2f  hdg=%.2f", Devices.navx.getYaw(), Devices.navx.getHeading());
+		// if (heading == Heading.angle)
+		// {
+		// 	Util.consoleLog("before reset=%.2f  hdg=%.2f", Devices.navx.getYaw(), Devices.navx.getHeading());
 			
-			Devices.navx.resetYawWait(1, 500);
+		// 	Devices.navx.resetYawWait(1, 500);
 			
-			Util.consoleLog("after reset2=%.2f  hdg=%.2f", Devices.navx.getYaw(), Devices.navx.getHeading());
-		}
+		// 	Util.consoleLog("after reset2=%.2f  hdg=%.2f", Devices.navx.getYaw(), Devices.navx.getHeading());
+		// }
 		
 		// If using PID to control distance, configure the PID object.
 		
-		if (pid == Pid.on)
-		{
-			pidController = new SynchronousPID(kP, kI, kD);
+		// if (pid == Pid.on)
+		// {
+		// 	pidController = new SynchronousPID(kP, kI, kD);
 			
-			if (power < 0)
-			{
-				pidController.setSetpoint(-encoderCounts);
-				pidController.setOutputRange(power, 0);
-			}
-			else
-			{
-				pidController.setSetpoint(encoderCounts);
-				pidController.setOutputRange(0, power);
-			}
+		// 	if (power < 0)
+		// 	{
+		// 		pidController.setSetpoint(-encoderCounts);
+		// 		pidController.setOutputRange(power, 0);
+		// 	}
+		// 	else
+		// 	{
+		// 		pidController.setSetpoint(encoderCounts);
+		// 		pidController.setOutputRange(0, power);
+		// 	}
 
-			Util.getElaspedTime();
-		}
+		// 	Util.getElaspedTime();
+		// }
 		
 		// Drive until we get there.
 		
@@ -188,43 +357,44 @@ public class Autonomous
 			// Use PID to determine the power applied. Should reduce power as we get close
 			// to the target encoder value.
 			
-			if (pid == Pid.on)
-			{
-				elapsedTime = Util.getElaspedTime();
+			// if (pid == Pid.on)
+			// {
+			// 	elapsedTime = Util.getElaspedTime();
 				
-				pidController.calculate(getEncoderCounts(), elapsedTime);
+			// 	pidController.calculate(getEncoderCounts(), elapsedTime);
 				
-				power = pidController.get();
+			// 	power = pidController.get();
 				
-				Util.consoleLog("error=%.2f  power2=%.2f  time=%f", pidController.getError(), power, elapsedTime);
-			}
+			// 	Util.consoleLog("error=%.2f  power2=%.2f  time=%f", pidController.getError(), power, elapsedTime);
+			// }
 
 			// Yaw angle is negative if robot veering left, positive if veering right when going forward.
 			
-			if (heading == Heading.heading)
-				yaw = Devices.navx.getHeadingYaw();
-			else
-				yaw = Devices.navx.getYaw();
+			// if (heading == Heading.heading)
+			// 	yaw = Devices.navx.getHeadingYaw();
+			// else
+			// 	yaw = Devices.navx.getYaw();
 			
-			LCD.printLine(5, "yaw=%.2f", yaw);
+			// LCD.printLine(5, "yaw=%.2f", yaw);
 			
-			Util.consoleLog("yaw=%.2f  hdg=%.2f  rot=%.2f", yaw, Devices.navx.getHeading(), -yaw * kSteeringGain);
+			// Util.consoleLog("yaw=%.2f  hdg=%.2f  rot=%.2f", yaw, Devices.navx.getHeading(), -yaw * kSteeringGain);
 			
 			// Note we invert sign on the angle because we want the robot to turn in the opposite
 			// direction than it is currently going to correct it. So a + angle says robot is veering
 			// right so we set the turn value to - because - is a turn left which corrects our right
 			// drift. kSteeringGain controls how aggressively we turn to stay on course.
 			
-			Devices.robotDrive.curvatureDrive(power, Util.clampValue(-yaw * kSteeringGain, 1.0), false);
+			// Devices.robotDrive.curvatureDrive(power, Util.clampValue(-yaw * kSteeringGain, 1.0), false);
 			
 			Timer.delay(.010);
 		}
 
-		if (stop == StopMotors.stop) Devices.robotDrive.stopMotor();				
+		// if (stop == StopMotors.stop) Devices.robotDrive.stopMotor();				
 		
-		Util.consoleLog("end: actual count=%d  error=%.3f  ena=%b  isa=%b", Math.abs(getEncoderCounts()), 
-				(double) Math.abs(Devices.rightEncoder.get()) / encoderCounts, robot.isEnabled(), robot.isAutonomous());
-	}
+		// Util.consoleLog("end: actual count=%d  error=%.3f  ena=%b  isa=%b", Math.abs(getEncoderCounts()), 
+		// 		(double) Math.abs(Devices.rightEncoder.get()) / encoderCounts, robot.isEnabled(), robot.isAutonomous());
+
+			}
 	
 	/** 
 	 *Average left and right encoder counts to see how far robot has moved.
@@ -568,7 +738,7 @@ public class Autonomous
 		
 		autoCurve(power, curve, target, StopMotors.dontStop, Brakes.off, Pid.on, Heading.heading);
 		
-		autoDrive(power, straightEncoderCounts, StopMotors.dontStop, Brakes.off, Pid.off, Heading.heading);
+		// autoDrive(power, straightEncoderCounts, Brakes.off);
 		
 		autoCurve(power, curve, saveHeading, StopMotors.stop, Brakes.on, Pid.on, Heading.heading);
 	}

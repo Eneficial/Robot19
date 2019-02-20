@@ -3,21 +3,23 @@ package Team4450.Robot19;
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.can.*;
+import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
 import Team4450.Lib.NavX;
 import Team4450.Lib.SRXMagneticEncoderRelative;
 import Team4450.Lib.SRXMagneticEncoderRelative.PIDRateType;
 import Team4450.Lib.Util;
 import Team4450.Lib.ValveDA;
-
+import Team4450.Lib.ValveSA;
 import edu.wpi.first.wpilibj.AnalogInput;
 import edu.wpi.first.wpilibj.Compressor;
+import edu.wpi.first.wpilibj.Counter;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.PIDSourceType;
 import edu.wpi.first.wpilibj.PowerDistributionPanel;
-import edu.wpi.first.wpilibj.RobotDrive;
 import edu.wpi.first.wpilibj.Servo;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -31,8 +33,16 @@ public class Devices
 	  // Motor CAN ID/PWM port assignments (1=left-front, 2=left-rear, 3=right-front, 4=right-rear)
 	  public static WPI_TalonSRX		LFCanTalon, LRCanTalon, RFCanTalon, RRCanTalon;
 	  
-	  public static DifferentialDrive	robotDrive;
-
+	//   public static WPI_VictorSPX		leftWinch, rightWinch, pickupMotor, ballSpit;	
+	  
+	  //public static CANSparkMax			leftSpark, rightSpark;
+	  
+	 // public static Talon				hatchWinch;
+	  
+	  public static DifferentialDrive		robotDrive;
+	//   public static	SpeedControllerGroup 	hDrive;
+	//   public static SpeedControllerGroup	winchDrive;
+	  
 	  public final static Joystick      utilityStick = new Joystick(2);	
 	  public final static Joystick      leftStick = new Joystick(0);	
 	  public final static Joystick		rightStick = new Joystick(1);	
@@ -40,25 +50,41 @@ public class Devices
 
 	  public final static Compressor	compressor = new Compressor(0);	// Compressor class represents the PCM.
 
-	  public final static ValveDA		highLowValve = new ValveDA(0);	// For gearbox.
-
+	//   public final static ValveDA		highLowValve = new ValveDA(0);		// For gearbox.
+	//   public final static ValveDA		frontClimbValve = new ValveDA(2);	// For front lift.
+	//   public final static ValveDA		rearClimbValve = new ValveDA(4);	// For rear lift.
+	//   public final static ValveDA		pickupValve = new ValveDA(6);		// For pickup arm.
+	//   public final static ValveSA		hatchKickValve = new ValveSA(1, 4);	// Kick of hatch.
+	  
 	  public final static AnalogInput	pressureSensor = new AnalogInput(0);
 	  
-	  public final static PowerDistributionPanel	PDP = new PowerDistributionPanel();
+	  public final static PowerDistributionPanel	pdp = new PowerDistributionPanel();
 
 	  public final static DriverStation				ds = DriverStation.getInstance();
 
 	  public static NavX				navx;
 
-	  // Wheel encoder (regular type) is plugged into dio port 0:
-	  // orange=+5v blue=signal, dio port 1 black=gnd yellow=signal. 
+	  // Touchless Encoder uses single channel on dio port 0.
+	//   public final static Counter		winchEncoder = new Counter(0);
+	//   public static boolean				winchEncoderEnabled = true;
+
+	//   // Encoder (regular type) is plugged into dio port n:
+	//   // orange=+5v blue=signal, dio port n+1: black=gnd yellow=signal. 
+	//   public final static Encoder		hatchEncoder = new Encoder(2, 3, true, EncodingType.k4X);
 	  
+	//   public static DigitalInput		winchSwitch = new DigitalInput(4);
+	//   public static DigitalInput		ballSwitch = new DigitalInput(5);
+
 	  // SRX magnetic encoder plugged into a CAN Talon.
 	  public static SRXMagneticEncoderRelative	leftEncoder, rightEncoder;
 	  
 	  private static boolean			talonBrakeMode;
 	  
-	  // Create RobotDrive object for CAN Talon controllers.
+	  // Private constructor prevents creation of any instances of this "static" class.
+	  
+	  private Devices() {}
+	  
+	  // Initialize motor controllers, groups and encoders.
 	  
 	  public static void InitializeCANTalonDrive()
 	  {
@@ -66,8 +92,8 @@ public class Devices
 
 		  LFCanTalon = new WPI_TalonSRX(1);
 		  LRCanTalon = new WPI_TalonSRX(2);
-		  RFCanTalon = new WPI_TalonSRX(4);
-		  RRCanTalon = new WPI_TalonSRX(3);
+		  RFCanTalon = new WPI_TalonSRX(4);	
+		  RRCanTalon = new WPI_TalonSRX(3);	
 		  
 	      // Initialize CAN Talons and write status to log so we can verify
 	      // all the Talons are connected.
@@ -87,20 +113,26 @@ public class Devices
 	      SetCANTalonBrakeMode(true);
 	      
 	      // Setup the SpeedControllerGroups for the left and right set of motors.
-	      // Groups not used when controlling motors with follower mode. See below.
+	      // Groups allow 4 motors to be used with DifferentialDrive. You can also
+	      // use follower mode where one motor on a side follows the other on the
+	      // same side.
 	      //SpeedControllerGroup LeftGroup = new SpeedControllerGroup(LFCanTalon, LRCanTalon);
 		  //SpeedControllerGroup RightGroup = new SpeedControllerGroup(RFCanTalon, RRCanTalon);
 		  
-		  // Since encoder is on rear motor talon, set front talons to follow the rears so
-		  // we can do closed loop control using the rear talons. In closed loop control the
-		  // talon is set to some setpoint and will move to that point using the encoder. This
-		  // is onboard PID control.
+		  // Since encoder is on rear motor talon, set front talons to follow the rears when
+		  // we do closed loop control using the rear talons. In closed loop control the
+		  // talon is set to some setpoint and will move to that point using the encoder or
+	      // you set a velocity setpoint and talon will run at that velocity. This is
+		  // onboard PID control.
+	      
+	      // For 2019 robot, put rear talons into a differential drive object and set the
+	      // front talons to follow the rears. Not going to get to closed loop control...
 		  
 		  LFCanTalon.set(ControlMode.Follower, LRCanTalon.getDeviceID());
 		  RFCanTalon.set(ControlMode.Follower, RRCanTalon.getDeviceID());
 		  
-		  // Configure SRX encoders as needed for testing. 5.8 is wheel diameter in inches.
-		  // Adjust for each years robot.
+		  // Configure SRX encoders as needed for measuring velocity and distance. 
+		  // 5.8 is wheel diameter in inches. Adjust for each years robot.
 		  rightEncoder = new SRXMagneticEncoderRelative(RRCanTalon, 5.8);
 		  leftEncoder = new SRXMagneticEncoderRelative(LRCanTalon, 5.8);
 		  
@@ -114,6 +146,26 @@ public class Devices
 		  
 		  //robotDrive = new DifferentialDrive(LeftGroup, RightGroup);
 		  robotDrive = new DifferentialDrive(LRCanTalon, RRCanTalon);
+		  
+		  //leftSpark = new CANSparkMax(5, MotorType.kBrushless);
+		  //rightSpark = new CANSparkMax(6, MotorType.kBrushless);
+
+		  // Setup a SpeedControllerGroup for the left and right H drive motors.
+	      //hDrive = new SpeedControllerGroup(leftSpark, rightSpark);
+	      
+		//   leftWinch = new WPI_VictorSPX(7);
+		//   rightWinch = new WPI_VictorSPX(8);
+		//   pickupMotor = new WPI_VictorSPX(9);
+		//   ballSpit = new WPI_VictorSPX(10);
+		//   hatchWinch = new Talon(0);
+		  
+		//   leftWinch.setNeutralMode(NeutralMode.Brake);
+		//   rightWinch.setNeutralMode(NeutralMode.Brake);
+		//   pickupMotor.setNeutralMode(NeutralMode.Brake);
+		//   ballSpit.setNeutralMode(NeutralMode.Brake);
+
+		  // Setup a SpeedControllerGroup for the left and right winch drive motors.
+	    //  winchDrive = new SpeedControllerGroup(leftWinch, rightWinch);
 	  }
 
 	  // Initialize and Log status indication from CANTalon. If we see an exception

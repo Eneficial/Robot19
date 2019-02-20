@@ -19,6 +19,9 @@ class Teleop
 	private boolean				autoTarget, altDriveMode;
 	private Vision				vision;
 	private GearBox				gearBox;
+	private Lift 				lift;
+	private GameObjectManipulation gameObjectManipulation;
+	private Climb				climb;
 
 	// Constructor.
 
@@ -33,7 +36,14 @@ class Teleop
 
 		gearBox = new  GearBox(robot);
 		
-		vision = Vision.getInstance(robot);
+		//vision = Vision.getInstance(robot);
+
+		lift = Lift.getInstance(robot); 
+
+		//gameObjectManipulation = GameObjectManipulation.getInstance(robot);
+
+		//climb = Climb.getInstance(robot);
+
 	}
 
 	// Free all objects that need it.
@@ -47,6 +57,9 @@ class Teleop
 		if (utilityStick != null) utilityStick.dispose();
 		if (launchPad != null) launchPad.dispose();
 		if (gearBox != null) gearBox.dispose();
+		if (lift != null) lift.dispose();
+		//if (gameObjectManipulation != null) gameObjectManipulation.dispose();
+		//if (climb != null) climb.dispose();
 	}
 
 	void OperatorControl() throws Exception
@@ -99,6 +112,13 @@ class Teleop
 		utilityStick = new JoyStick(Devices.utilityStick, "UtilityStick", JoyStickButtonIDs.TRIGGER, this);
 		//Example on how to track button:
 		//utilityStick.AddButton(JoyStickButtonIDs.TOP_MIDDLE);
+		utilityStick.AddButton(JoyStickButtonIDs.TRIGGER);
+		utilityStick.AddButton(JoyStickButtonIDs.TOP_RIGHT);
+		utilityStick.AddButton(JoyStickButtonIDs.TOP_MIDDLE);
+		utilityStick.AddButton(JoyStickButtonIDs.TOP_LEFT);
+		utilityStick.AddButton(JoyStickButtonIDs.TOP_RIGHT);
+		utilityStick.AddButton(JoyStickButtonIDs.TOP_BACK);
+		utilityStick.AddButton(JoyStickButtonIDs.RIGHT_REAR);
 		utilityStick.addJoyStickEventListener(new UtilityStickListener());
 		utilityStick.Start();
 
@@ -161,6 +181,14 @@ class Teleop
 
 			// Two drive modes, full tank and alternate. Switch on right stick trigger.
 
+			// set H drive motors.
+			
+			if (!autoTarget && rightStick.GetCurrentState(JoyStickButtonIDs.TRIGGER))
+			{
+				//Devices.hDrive.set(rightX);
+			}
+
+
 			if (!autoTarget) 
 			{
 				if (altDriveMode)
@@ -207,6 +235,8 @@ class Teleop
 					// This shows how to use curvature drive mode, toggled by trigger (for testing).
 					//Devices.robotDrive.curvatureDrive(rightY, rightX, rightStick.GetLatchedState(JoyStickButtonIDs.TRIGGER));
 			}
+
+			lift.powerControl(utilY);
 
 			// Update the robot heading indicator on the DS. Only for labview DB.
 
@@ -403,6 +433,20 @@ class Teleop
 
 			switch(button.id)
 			{
+				case TOP_RIGHT:
+				if (button.latchedState) {
+					//gameObjectManipulation.BallOuttake(0.3);
+				} else {
+					//gameObjectManipulation.BallOuttakeStop(0);
+				}
+
+				case TOP_LEFT:
+				if (button.latchedState) {
+					//gameObjectManipulation.BallIntake(0.5);
+				} else {
+					//gameObjectManipulation.BallIntakeStop(0);
+				}
+				break;
 				default:
 					break;
 			}
