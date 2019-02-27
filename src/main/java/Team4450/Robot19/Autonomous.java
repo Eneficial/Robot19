@@ -139,6 +139,7 @@ public class Autonomous
 	}
 
 	private void autoDriveVision(double tolerance, int lowerLimit){
+
 		double angle = Math.toDegrees(robot.vision.getTurnAngle());
 		double diff = angle;
 		int offset = (int)robot.vision.getInnerDist();
@@ -150,16 +151,16 @@ public class Autonomous
 		// 	Util.consoleLog("angle =%f", angle);
 			
 		// }
-
+		
 		while(!reached && offset != 0.0 && isAutoActive()){
 			offset = (int)robot.vision.getInnerDist();	
 			Util.consoleLog("Offset =%d", offset);
-			Util.consoleLog("diff =%f", diff);
 			Util.consoleLog("angle =%f", angle);
 			if((offset < lowerLimit) && (angle > 43.5)){
 				Util.consoleLog("Over 43.5");
 				Util.consoleLog(" Left motor =%f rightmotor =%f", Devices.LRCanTalon.get(), Devices.RRCanTalon.get()
 				);
+				
 				Devices.robotDrive.tankDrive(0.3, 0.4);
 				reached = false; 
 			}
@@ -186,8 +187,8 @@ public class Autonomous
 		// 	Timer.delay(0.25);
 		// }
 		//Timer.delay(1);
+		Timer.delay(0.20);
 		angle = Math.toDegrees(robot.vision.getTurnAngle());
-		diff = angle;
 
 	}
 	Util.consoleLog("I am outside of the loop! Put me back in!!!!");
