@@ -7,7 +7,7 @@ import Team4450.Lib.*;
 import Team4450.Lib.JoyStick.*;
 import Team4450.Lib.LaunchPad.*;
 import Team4450.Robot19.Devices;
-
+import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
@@ -76,6 +76,7 @@ class Teleop
 
 		LCD.printLine(1, "Mode: OperatorControl");
 		LCD.printLine(2, "All=%s, Start=%d, FMS=%b", robot.alliance.name(), robot.location, Devices.ds.isFMSAttached());
+		LCD.printLine(6, "leftenc=%d  rightenc=%d hatchenc=%d winchenc=%d" , Devices.leftEncoder.get(), Devices.rightEncoder.get());
 		
 		// Set synchronousPID as a sendable for testing.
 		SynchronousPID pidTest = new SynchronousPID(1,2,3,4);

@@ -14,6 +14,7 @@ import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.SampleRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import Team4450.Robot19.ExtLib.CameraFeed;
 
 /**
  * The VM is configured to automatically run this class, and to call the
@@ -44,6 +45,8 @@ public class Robot extends SampleRobot
   
   Teleop 				teleOp;
   Autonomous 			autonomous;
+
+  PegPipeline pipeline = new PegPipeline();
   
   // Constructor.
   
@@ -161,9 +164,12 @@ public class Robot extends SampleRobot
    		//monitorPDPThread.start();
 
    		// Start camera server thread using our class for usb cameras.
-      
-       	cameraThread = CameraFeed.getInstance(); 
-       	cameraThread.start();
+	  
+		   
+		   cameraThread = CameraFeed.getInstance(); 
+		   cameraThread.setPipeline(pipeline);
+		   cameraThread.setShowContours(false);
+    	   cameraThread.start();
        	
        	// Configure autonomous program choices sendable chooser.
        	
